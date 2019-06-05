@@ -1,0 +1,84 @@
+  ---
+title: "Les différents polluants en region centre"
+author: "Denis, Marceline et Gabriel"
+date: "30/05/2019"
+output:
+  html_document: default
+  pdf_document: default
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## R Markdown
+
+
+#Ici on actionne la lecture des library necessaire pour la suite :
+
+```{r library}
+library(httr)
+library(jsonlite)
+library(dplyr)
+library(leaflet)
+require(devtools)
+```
+
+#On procède au chargement des données via l'API:
+```{r Données}
+Projet1<-"https://services1.arcgis.com/HzzPcgRsxxyIZdlU/arcgis/rest/services/Concentrations_annuelles/FeatureServer/0/query?where=1%3D1&outFields=*&outSR=4326&f=json"
+Projet2<-httr::GET(Projet1)
+Projet3<-httr::content(Projet2)
+Projet3FROM<-jsonlite::fromJSON(Projet3, flatten=TRUE)
+Projet<-Projet3FROM$features
+View(Projet)
+```
+
+#On procede a un recoupement des donnees avec un calcul des moyennes de polluant par ville :
+
+```{r}
+stat_polluant_commune <- Projet %>%
+  group_by( attributes.nom_com, attributes.nom_polluant,attributes.x_wgs84,attributes.y_wgs84) %>%
+  summarise(moyenne = mean(attributes.valeur),
+            mediane = median(attributes.valeur),
+            mini = min(attributes.valeur),
+            maxi = max(attributes.valeur))
+```
+
+#ainsi qu'une selection de la moyenne de chacun des polluants :
+```{r}
+NO<-filter(stat_polluant_commune, attributes.nom_polluant=="NO")
+NO2<-filter(stat_polluant_commune, attributes.nom_polluant=="NO2")
+o3<-filter(stat_polluant_commune, attributes.nom_polluant=="O3")
+Pm10<-filter(stat_polluant_commune, attributes.nom_polluant=="PM10")
+Pm2.5<-filter(stat_polluant_commune, attributes.nom_polluant=="PM2.5")
+```
+
+#On telecharge le fond de carte et on selectionne la vue :
+```{r}
+carte <- leaflet::leaflet() %>%
+  leaflet::addTiles() %>%
+  leaflet::setView(lng = 1.693130, lat = 46.79827, zoom = 12)
+print(carte)
+```
+
+#On attribue les variables afin de placer les points de repere sur la carte et representer les cercles de polluants:
+```{r}
+Longi <- Projet$attributes.x_wgs84
+Latti <- Projet$attributes.y_wgs84
+radius2 <- NO$moyenne
+```
+
+#On place les points de repere et les polluants sur la carte : 
+```{r}
+carte <- carte %>%
+  leaflet::addCircleMarkers(lng = Longi, lat = Latti, weight = 1, radius = radius2, color = "purple")
+print(carte)
+```
+
+#On realise des graphique plus parlant a partir de la moyenne des differents polluants par ville : 
+```{r}
+barplot(height = NO$moyenne, 
+        names.arg =(NO$attributes.nom_com), main = ("Monoxyde d'Azote (NO) pour 2018"))
+```
+
